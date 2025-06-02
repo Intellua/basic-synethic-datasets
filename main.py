@@ -57,15 +57,22 @@ Content:
     
     return response.qa_pairs
 
-def write_to_csv(qa_data, output_file):
-    """Write Q&A data to CSV file."""
+def write_header_to_csv(output_file):
+    """Write CSV header."""
     with open(output_file, 'w', newline='', encoding='utf-8') as csvfile:
         fieldnames = ['source_file', 'question', 'answer']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-        
         writer.writeheader()
+
+def append_to_csv(qa_data, output_file):
+    """Append Q&A data to CSV file and flush immediately."""
+    with open(output_file, 'a', newline='', encoding='utf-8') as csvfile:
+        fieldnames = ['source_file', 'question', 'answer']
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        
         for row in qa_data:
             writer.writerow(row)
+        csvfile.flush()  # Ensure data is written to disk immediately
 
 def main():
     print("Starting jdn-synthetic-dataset question generation...")
@@ -78,8 +85,8 @@ def main():
     
     # Initialize OpenAI LLM
     llm = ChatOpenAI(
-        model="gpt-4.1-nano",  # Using gpt-4o-mini for better structured output support
-        temperature=0.7
+        model=os.getenv('OPENAI_MODEL'),  # Using gpt-4o-mini for better structured output support
+        temperature=1
     )
     
     # Find all .md files in the files directory
@@ -95,11 +102,21 @@ def main():
     for file in md_files:
         print(f"  - {file}")
     
-    all_qa_data = []
+    # Prepare output file
+    output_file = "./output/generated_questions_and_answers.csv"
+    
+    # Create output directory if it doesn't exist
+    Path("./output").mkdir(exist_ok=True)
+    
+    # Write CSV header
+    write_header_to_csv(output_file)
+    print(f"Created output file: {output_file}")
+    
+    total_qa_count = 0
     
     # Process each markdown file
-    for md_file in md_files:
-        print(f"\nProcessing: {md_file}")
+    for i, md_file in enumerate(md_files, 1):
+        print(f"\nProcessing file {i}/{len(md_files)}: {md_file}")
         
         try:
             # Read file content
@@ -117,24 +134,27 @@ def main():
             
             print(f"  Generated {len(qa_pairs)} Q&A pairs")
             
-            # Add source file information and convert to dict format
+            # Convert to dict format and append to CSV immediately
+            file_qa_data = []
             for qa in qa_pairs:
-                all_qa_data.append({
+                file_qa_data.append({
                     'source_file': str(md_file),
                     'question': qa.question,
                     'answer': qa.answer
                 })
+            
+            # Append to CSV and flush
+            append_to_csv(file_qa_data, output_file)
+            total_qa_count += len(file_qa_data)
+            
+            print(f"  ✅ Saved {len(file_qa_data)} Q&A pairs to CSV")
         
         except Exception as e:
-            print(f"  Error processing {md_file}: {str(e)}")
+            print(f"  ❌ Error processing {md_file}: {str(e)}")
             continue
     
-    if all_qa_data:
-        # Write to CSV
-        output_file = "./output/generated_questions_and_answers.csv"
-        write_to_csv(all_qa_data, output_file)
-        
-        print(f"\n✅ Successfully generated {len(all_qa_data)} Q&A pairs!")
+    if total_qa_count > 0:
+        print(f"\n🎉 Successfully generated {total_qa_count} Q&A pairs from {len(md_files)} file(s)!")
         print(f"Results saved to: {output_file}")
     else:
         print("\n❌ No Q&A pairs were generated.")
