@@ -137,6 +137,14 @@ class ModelEvaluator:
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": "{question}"},
                     ],
+                    files=[
+                        {
+                            "id": "5124e1a2-9908-4b7a-8945-6fb63f2cea6e",
+                            "name": "Wiki",
+                            "type": "collection",
+                            "status": "processed"
+                        }
+                    ]
                 )
                 
                 # Use predefined question-answering metrics to evaluate our model
