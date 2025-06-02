@@ -84,32 +84,32 @@ class ModelEvaluator:
     def get_model_configurations(self) -> List[Dict[str, Any]]:
         """Define the models to evaluate."""
         return [
-            # {
-            #     "name": "gemma3:4b",
-            #     "model": "gemma3:4b",
-            #     "system_prompt": system_prompt
-            # },
-            # {
-            #     "name": "llama3.3:70b",
-            #     "model": "llama3.3:70b",
-            #     "system_prompt": system_prompt
-            # },
-            # {
-            #     "name": "qwen3:14b",
-            #     "model": "qwen3:14b",
-            #     "system_prompt": system_prompt + " /no_think"
-            # }
-
             {
-                "name": "gpt-4.1-nano",
-                "model": "gpt-4.1-nano",
+                "name": "gemma3:4b",
+                "model": "gemma3:4b",
                 "system_prompt": system_prompt
             },
             {
-                "name": "gpt-4.1-mini",
-                "model": "gpt-4.1-mini",
+                "name": "llama3.3:70b",
+                "model": "llama3.3:70b",
                 "system_prompt": system_prompt
+            },
+            {
+                "name": "qwen3:14b",
+                "model": "qwen3:14b",
+                "system_prompt": system_prompt + " /no_think"
             }
+
+            # {
+            #     "name": "gpt-4.1-nano",
+            #     "model": "gpt-4.1-nano",
+            #     "system_prompt": system_prompt
+            # },
+            # {
+            #     "name": "gpt-4.1-mini",
+            #     "model": "gpt-4.1-mini",
+            #     "system_prompt": system_prompt
+            # }
         ]
     
     def evaluate_model(self, model_config: Dict[str, Any], eval_data: pd.DataFrame) -> Dict[str, Any]:
