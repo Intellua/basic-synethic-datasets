@@ -84,10 +84,13 @@ def main():
         return
     
     # Initialize OpenAI LLM
+    model_name = os.getenv('OPENAI_MODEL')  # Default to gpt-4o-mini
     llm = ChatOpenAI(
-        model=os.getenv('OPENAI_MODEL'),  # Using gpt-4o-mini for better structured output support
+        model=model_name,
         temperature=1
     )
+    
+    print(f"Using OpenAI model: {model_name}")
     
     # Find all .md files in the files directory
     files_dir = Path("files")
