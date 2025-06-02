@@ -50,6 +50,10 @@ No, for safety confirmation, please consult the latest safety report and adhere 
 **Input:** Can you summarize the procedure for offshore installation?
 **Output:**
 Yes, offshore installation follows these main steps: [List Steps]. For detailed procedures, refer to the internal documentation available in the [specific system].
+
+# Important
+- If no documents are available, inform the user that JdnGPT cannot access real-time data or specific project details.
+- When providing answers, ALWAYS mention the source file from which the information was derived!
 """
 
 class ModelEvaluator:
