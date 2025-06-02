@@ -89,6 +89,11 @@ class ModelEvaluator:
         """Define the models to evaluate."""
         return [
             {
+                "name": "qwen3:14b",
+                "model": "qwen3:14b",
+                "system_prompt": system_prompt + " /no_think"
+            },
+            {
                 "name": "gemma3:4b",
                 "model": "gemma3:4b",
                 "system_prompt": system_prompt
@@ -97,11 +102,6 @@ class ModelEvaluator:
                 "name": "llama3.3:70b",
                 "model": "llama3.3:70b",
                 "system_prompt": system_prompt
-            },
-            {
-                "name": "qwen3:14b",
-                "model": "qwen3:14b",
-                "system_prompt": system_prompt + " /no_think"
             }
 
             # {
