@@ -20,6 +20,21 @@ models = [
     "qwen3:14b"
 ]
 
+temperatures = [
+    0.6,
+    1.0,
+    0.1
+]
+
+cartesian_product = []
+for model in models:
+    for temperature in temperatures:
+        cartesian_product.append((model, temperature))
+
+print("Cartesian product of models and temperatures:")
+for model, temperature in cartesian_product:
+    print(f"Model: {model}, Temperature: {temperature}")
+
 def score_llm_as_a_judge(query: str, generation: str, ground_truth: str):
     body = {
       "model": os.getenv("OPENAI_EVAL_MODEL", "qwen3:30b-a3b"),
@@ -105,16 +120,11 @@ def eval_llm_as_a_judge(
     stream=False,
     model="qwen3:14b",
     chat_id=None,
-    max_tokens=5000,
     temperature=0.6,
-    num_ctx=32000,
     files=None,
     variables=None,
     api_endpoint=None,
-    expected_output=None,
     item = None,
-    index=None,
-    trace_id=None,
 ):
     """
     Make a custom API call with configurable parameters
@@ -137,10 +147,6 @@ def eval_llm_as_a_judge(
     if chat_id is None:
         chat_id = str(uuid.uuid4())
     
-    # Set default system content if not provided
-    if system_content is None:
-        system_content = "You are a helpfull precise respectfull assistant. You answer questions brief but comprehensive. Do not speculate or make up information./no_think"
-    
     # Construct messages
     messages = [
         {
@@ -153,17 +159,6 @@ def eval_llm_as_a_judge(
         }
     ]
     
-    # Set default files if not provided
-    if files is None:
-        files = [
-            {
-                "id": "5124e1a2-9908-4b7a-8945-6fb63f2cea6e",
-                "name": "Wiki",
-                "type": "collection",
-                "status": "processed"
-            }
-        ]
-    
     # Set default variables if not provided
     if variables is None:
         variables = {
@@ -174,18 +169,11 @@ def eval_llm_as_a_judge(
     payload = {
         "stream": stream,
         "model": model,
-        # "chat_id": chat_id,
-        # "params": {
-        #     "max_tokens": max_tokens,
-        #     "temperature": temperature,
-        #     "num_ctx": num_ctx,
-        #     "top_p": 0.95,
-        #     "min_p": 0,
-        #     "top_k": 20,
-        # },
+        "chat_id": chat_id,
         "messages": messages,
-        # "files": files,
-        # "variables": variables,
+        "files": files,
+        "variables": variables,
+        "temperature": temperature
     }
     
     # Get API endpoint from environment or use provided one
@@ -244,7 +232,7 @@ def eval_llm_as_a_judge(
         return None
 
 # @observe(capture_input=False, capture_output=False, as_type="generation")
-def run_experiment(experiment_name, system_prompt, model):
+def run_experiment(experiment_name: str, system_prompt: str, model: str, temperature: float):
   dataset = langfuse.get_dataset("wiki_questions")
 
   for index, item in enumerate(dataset.items):
@@ -257,12 +245,13 @@ def run_experiment(experiment_name, system_prompt, model):
       print(f"Running evaluation for: {item.input} with trace ID: {trace_id}")
  
       # run application, pass input and system prompt
-      output = eval_llm_as_a_judge(item.input, system_prompt,
+      _ = eval_llm_as_a_judge(item.input, system_prompt,
                                      trace_id=trace_id,
                                      item=item,
                                      index=index,
                                      expected_output=item.expected_output,
-                                     model=model
+                                     model=model,
+                                     temperature=temperature,
                                      )
 
       langfuse_context.flush()
@@ -271,10 +260,10 @@ def run_experiment(experiment_name, system_prompt, model):
 
 if __name__ == "__main__":
     
-    for model in models:
-        experiment_name = f"jdn_wiki-{model}-{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}"
+    for (model, temperature) in cartesian_product:
+        experiment_name = f"jdn_wiki-{model}-{temperature}-{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}"
         print(f"Running experiment with model: {model}")
-        run_experiment(experiment_name, system_prompt.prompt, model)
+        run_experiment(experiment_name, system_prompt.prompt, model, temperature)
         langfuse_context.flush()
         langfuse.flush()
     
