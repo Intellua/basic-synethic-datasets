@@ -12,7 +12,6 @@ load_dotenv()
 
 # init
 langfuse = Langfuse()
-system_prompt = langfuse.get_prompt("jdn-prompt")
 
 models = [
     "llama3.3:70b",
@@ -26,14 +25,101 @@ temperatures = [
     0.1
 ]
 
+prompts = [
+    langfuse.get_prompt("jdn-prompt"),
+    langfuse.get_prompt("jdn-helpfulness"),
+]
+
 cartesian_product = []
 for model in models:
     for temperature in temperatures:
-        cartesian_product.append((model, temperature))
+        for prompt in prompts:
+            cartesian_product.append((model, temperature, prompt))
 
 print("Cartesian product of models and temperatures:")
-for model, temperature in cartesian_product:
-    print(f"Model: {model}, Temperature: {temperature}")
+for model, temperature, prompt in cartesian_product:
+    print(f"Model: {model}, Temperature: {temperature}, Prompt: {prompt.name}")
+
+def helpfulness_llm_as_a_judge(query: str, generation: str, ground_truth: str):
+    body = {
+      "model": os.getenv("OPENAI_EVAL_MODEL", "qwen3:30b-a3b"),
+      "messages": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": f"Identify the helpfulness of a response by analyzing the relationship between the query, answer, and expected answer. \n\nStart with reasoning and end with the response. Consider references to external elements and other aspects when determining helpfulness.\n\n# Steps\n\n1. **Understand the input components**: Clearly differentiate between the query, the given answer, and the expected answer.\n2. **Analyze the Answer**: \n   - Check if the answer directly addresses the query.\n   - Evaluate the accuracy and relevance of the response in relation to the expected answer.\n3. **Consider External Elements**: \n   - Assess if the answer appropriately refers to external elements, providing added value or clarification.\n4. **Formulate Reasoning**: \n   - Base your reasoning on the alignment between the answer and the expected answer, while noting any helpful references to external information.\n5. **Determine Helpfulness**: \n   - Conclude how helpful the answer is based on the analysis, supported by your reasoning.\n\n# Output Format\n\nThe output should be structured into two parts:\n- **Reasoning**: A detailed explanation of the analysis.\n- **Response**: A conclusion stating the helpfulness of the answer.\n\n# Examples\n\n**Example 1:**\n\n- **Query**: \"What is the capital of France?\"\n- **Answer**: \"The capital of France is Paris.\"\n- **Expected Answer**: \"Paris.\"\n\n**Reasoning**: The given answer correctly identifies the capital of France as Paris, which matches the expected answer. No additional references are used, but the information is accurate and directly addresses the query.\n\n**Response**: The answer is helpful.\n\n**Example 2:**\n\n- **Query**: \"What are some health benefits of eating apples?\"\n- **Answer**: \"Apples are good for your heart, may help prevent cancer, and boost your immunity. They are also linked to a lower risk of diabetes.\"\n- **Expected Answer**: \"Apples help in improving heart health and boosting immunity.\"\n\n**Reasoning**: The answer provides an expanded list of health benefits compared to the expected answer, which adds value. It correctly includes the benefits mentioned in the expected answer and introduces relevant additional information, increasing helpfulness by referencing other significant health benefits.\n\n**Response**: The answer is very helpful.\n\n# Notes\n\n- Ensure reasoning is coherent and fully supports the response.\n- Consider each answer\"s context and specificity to the query when evaluating helpfulness.\n- External references should enhance the response\"s value or clarity.\\n\\nInput:\\nQuery:\\n```\\n{query}\\n```\\n\\nGeneration:\\n```\\n{generation}\\n```\\n\\nGround truth:\\n```\\n{ground_truth}\\n```\\n\\n\\n\\n"
+            }
+          ]
+        }
+      ],
+      "response_format": {
+        "type": "json_schema",
+        "json_schema": {
+          "name": "helpfulness_detection",
+          "strict": True,
+          "schema": {
+            "type": "object",
+            "properties": {
+              "reasoning": {
+                "type": "string",
+                "description": "The reasoning behind the helpfulness score."
+              },
+              "score": {
+                "type": "number",
+                "description": "A float value representing the helpfulness score between 0 and 1."
+              }
+            },
+            "required": [
+              "reasoning",
+              "score"
+            ],
+            "additionalProperties": True
+          }
+        }
+      },
+      "temperature": 0.6,
+      "max_completion_tokens": 2048,
+      "top_p": 0.95,
+      "frequency_penalty": 0,
+      "presence_penalty": 0
+    }
+
+    api_endpoint = os.getenv("OPENAI_OLLAMA_URL", "http://lxc-ai01:3000/ollama/v1")  + "/chat/completions"
+    try:
+        # Make the API request
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {os.getenv('OPENAI_API_KEY', '')}"
+        }
+        
+        response = requests.post(
+            api_endpoint,
+            json=body,
+            headers=headers,
+            stream=False,
+            timeout=120
+        )
+        
+        response.raise_for_status()
+        
+        # Handle non-streaming response
+        result = response.json()["choices"][0]["message"]["content"]
+        print("Raw result:", result)
+
+        result_json = json.loads(result)
+        print("Parsed result JSON:", result_json)
+        if "score" in result_json:
+            return result_json["reasoning"], float(result_json["score"])
+        else:
+            print("Score not found in response:", result_json)
+            return None
+            
+    except requests.exceptions.RequestException as e:
+        print(f"API request failed: {e}")
+        print("Response content:", response.text if 'response' in locals() else "No response")
+        return None
 
 def score_llm_as_a_judge(query: str, generation: str, ground_truth: str):
     body = {
@@ -44,7 +130,7 @@ def score_llm_as_a_judge(query: str, generation: str, ground_truth: str):
           "content": [
             {
               "type": "text",
-              "text": f"Evaluate the correctness of the generation on a continuous scale from 0 to 1. A generation can be considered correct (Score: 1) if it includes all the key facts from the ground truth and if every fact presented in the generation is factually supported by the ground truth or common sense.\\n\\nExample:\\nQuery: Can eating carrots improve your vision?\\nGeneration: Yes, eating carrots significantly improves your vision, especially at night. This is why people who eat lots of carrots never need glasses. Anyone who tells you otherwise is probably trying to sell you expensive eyewear or does not want you to benefit from this simple, natural remedy. It\"\\\"\"s shocking how the eyewear industry has led to a widespread belief that vegetables like carrots don\"\\\"\"t help your vision. People are so gullible to fall for these money-making schemes.\\nGround truth: Well, yes and no. Carrots won\"\\\"\"t improve your visual acuity if you have less than perfect vision. A diet of carrots won\"\\\"\"t give a blind person 20/20 vision. But, the vitamins found in the vegetable can help promote overall eye health. Carrots contain beta-carotene, a substance that the body converts to vitamin A, an important nutrient for eye health. An extreme lack of vitamin A can cause blindness. Vitamin A can prevent the formation of cataracts and macular degeneration, the world\"\\\"\"s leading cause of blindness. However, if your vision problems aren\"\\\"\"t related to vitamin A, your vision won\"\\\"\"t change no matter how many carrots you eat.\\nScore: 0.1\\nReasoning: While the generation mentions that carrots can improve vision, it fails to outline the reason for this phenomenon and the circumstances under which this is the case. The rest of the response contains misinformation and exaggerations regarding the benefits of eating carrots for vision improvement. It deviates significantly from the more accurate and nuanced explanation provided in the ground truth.\\n\\n\\n\\nInput:\\nQuery: {query}\\nGeneration: {generation}\\nGround truth: {ground_truth}\\n\\n\\nThink step by step."
+              "text": f"Evaluate the correctness of the generation on a continuous scale from 0 to 1. A generation can be considered correct (Score: 1) if it includes all the key facts from the ground truth and if every fact presented in the generation is factually supported by the ground truth or common sense.\\n\\nExample:\\nQuery: Can eating carrots improve your vision?\\nGeneration: Yes, eating carrots significantly improves your vision, especially at night. This is why people who eat lots of carrots never need glasses. Anyone who tells you otherwise is probably trying to sell you expensive eyewear or does not want you to benefit from this simple, natural remedy. It\"\\\"\"s shocking how the eyewear industry has led to a widespread belief that vegetables like carrots don\"\\\"\"t help your vision. People are so gullible to fall for these money-making schemes.\\nGround truth: Well, yes and no. Carrots won\"\\\"\"t improve your visual acuity if you have less than perfect vision. A diet of carrots won\"\\\"\"t give a blind person 20/20 vision. But, the vitamins found in the vegetable can help promote overall eye health. Carrots contain beta-carotene, a substance that the body converts to vitamin A, an important nutrient for eye health. An extreme lack of vitamin A can cause blindness. Vitamin A can prevent the formation of cataracts and macular degeneration, the world\"\\\"\"s leading cause of blindness. However, if your vision problems aren\"\\\"\"t related to vitamin A, your vision won\"\\\"\"t change no matter how many carrots you eat.\\nScore: 0.1\\nReasoning: While the generation mentions that carrots can improve vision, it fails to outline the reason for this phenomenon and the circumstances under which this is the case. The rest of the response contains misinformation and exaggerations regarding the benefits of eating carrots for vision improvement. It deviates significantly from the more accurate and nuanced explanation provided in the ground truth.\\n\\n\\n\\nInput:\\nQuery:\\n```\\n{query}\\n```\\n\\nGeneration:\\n```\\n{generation}\\n```\\n\\nGround truth:\\n```\\n{ground_truth}\\n```\\n\\n\\n\\nThink step by step."
             }
           ]
         }
@@ -214,11 +300,20 @@ def eval_llm_as_a_judge(
         llm_as_a_judge_reason, llm_as_a_judge_score = score_llm_as_a_judge(item.input, output, item.expected_output)
         print(f"Score for {user_content}: {llm_as_a_judge_score}")
 
+        llm_as_a_judge_helpfulreason, llm_as_a_judge_helpfulscore = score_llm_as_a_judge(item.input, output, item.expected_output)
+        print(f"Helpfulness score for {user_content}: {llm_as_a_judge_helpfulscore}")
+
         langfuse_context.score_current_observation(
           name="score",
           value=llm_as_a_judge_score,
           data_type="NUMERIC",  # optional, inferred if not provided
           comment=llm_as_a_judge_reason
+        )
+        langfuse_context.score_current_observation(
+          name="helpfulness_score",
+          value=llm_as_a_judge_helpfulscore,
+          data_type="NUMERIC",  # optional, inferred if not provided
+          comment=llm_as_a_judge_helpfulreason
         )
         langfuse_context.score_current_observation(
           name="duration",
@@ -268,10 +363,10 @@ def run_experiment(experiment_name: str, system_prompt: str, model: str, tempera
 
 if __name__ == "__main__":
     
-    for (model, temperature) in cartesian_product:
-        experiment_name = f"jdn_wiki-{model}-{temperature}-{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}"
+    for (model, temperature, prompt) in cartesian_product:
+        experiment_name = f"jdn_wiki-{model}-{prompt.name}-{temperature}-{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}"
         print(f"Running experiment with model: {model}")
-        run_experiment(experiment_name, system_prompt.prompt, model, temperature)
+        run_experiment(experiment_name, prompt.prompt, model, temperature)
         langfuse_context.flush()
         langfuse.flush()
     
