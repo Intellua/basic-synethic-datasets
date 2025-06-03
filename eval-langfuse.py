@@ -15,8 +15,8 @@ langfuse = Langfuse()
 system_prompt = langfuse.get_prompt("jdn-prompt")
 
 models = [
-    "gemma3:4b",
     "llama3.3:70b",
+    "gemma3:4b",
     "qwen3:14b"
 ]
 
