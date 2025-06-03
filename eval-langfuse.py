@@ -206,7 +206,7 @@ def run_my_custom_llm_app(
 def run_experiment(experiment_name, system_prompt):
   dataset = langfuse.get_dataset("wiki_questions")
 
-  for item in dataset.items:
+  for index, item in enumerate(dataset.items):
     # item.observe() returns a trace_id that can be used to add custom evaluations later
     # it also automatically links the trace to the experiment run
     with item.observe(run_name=experiment_name) as trace_id:
@@ -221,7 +221,7 @@ def run_experiment(experiment_name, system_prompt):
       # optional: add custom evaluation results to the experiment trace
       # we use the previously created example evaluation function
       langfuse.score(
-        id="corectness", # optional, can be used as an indempotency key to update the score subsequently
+        id=f"{index}",
         trace_id=trace_id,
         name="Corectness",
         value=llm_as_a_judge_score,
@@ -229,7 +229,7 @@ def run_experiment(experiment_name, system_prompt):
         comment="Factual correctness",
       )
       langfuse.score(
-        id="output", # optional, can be used as an indempotency key to update the score subsequently
+        id=f"{index}",
         trace_id=trace_id,
         name="Output",
         value=output,
