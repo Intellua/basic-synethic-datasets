@@ -14,6 +14,80 @@ load_dotenv()
 langfuse = Langfuse()
 system_prompt = langfuse.get_prompt("jdn-prompt")
 
+def score_llm_as_a_judge(query: str, generation: str, ground_truth: str):
+    body = {
+      "model": "qwen3:14b",
+      "messages": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": f"Evaluate the correctness of the generation on a continuous scale from 0 to 1. A generation can be considered correct (Score: 1) if it includes all the key facts from the ground truth and if every fact presented in the generation is factually supported by the ground truth or common sense.\\n\\nExample:\\nQuery: Can eating carrots improve your vision?\\nGeneration: Yes, eating carrots significantly improves your vision, especially at night. This is why people who eat lots of carrots never need glasses. Anyone who tells you otherwise is probably trying to sell you expensive eyewear or does not want you to benefit from this simple, natural remedy. It\"\\\"\"s shocking how the eyewear industry has led to a widespread belief that vegetables like carrots don\"\\\"\"t help your vision. People are so gullible to fall for these money-making schemes.\\nGround truth: Well, yes and no. Carrots won\"\\\"\"t improve your visual acuity if you have less than perfect vision. A diet of carrots won\"\\\"\"t give a blind person 20/20 vision. But, the vitamins found in the vegetable can help promote overall eye health. Carrots contain beta-carotene, a substance that the body converts to vitamin A, an important nutrient for eye health. An extreme lack of vitamin A can cause blindness. Vitamin A can prevent the formation of cataracts and macular degeneration, the world\"\\\"\"s leading cause of blindness. However, if your vision problems aren\"\\\"\"t related to vitamin A, your vision won\"\\\"\"t change no matter how many carrots you eat.\\nScore: 0.1\\nReasoning: While the generation mentions that carrots can improve vision, it fails to outline the reason for this phenomenon and the circumstances under which this is the case. The rest of the response contains misinformation and exaggerations regarding the benefits of eating carrots for vision improvement. It deviates significantly from the more accurate and nuanced explanation provided in the ground truth.\\n\\n\\n\\nInput:\\nQuery: {query}\\nGeneration: {generation}\\nGround truth: {ground_truth}\\n\\n\\nThink step by step."
+            }
+          ]
+        }
+      ],
+      "response_format": {
+        "type": "json_schema",
+        "json_schema": {
+          "name": "llm_score_system",
+          "strict": True,
+          "schema": {
+            "type": "object",
+            "properties": {
+              "score": {
+                "type": "number",
+                "description": "The score assigned based on the quality of the actual answer compared to the expected answer."
+              }
+            },
+            "required": [
+              "score"
+            ],
+            "additionalProperties": False
+          }
+        }
+      },
+      "temperature": 0.6,
+      "max_completion_tokens": 2048,
+      "top_p": 0.95,
+      "min_p": 0,
+      "top_k": 20,
+      "frequency_penalty": 0,
+      "presence_penalty": 0
+    }
+
+    api_endpoint = os.getenv("OPENAI_OLLAMA_URL", "http://lxc-ai01:3000/ollama")
+    try:
+        # Make the API request
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {os.getenv('OPENAI_API_KEY', '')}"
+        }
+        
+        response = requests.post(
+            api_endpoint,
+            json=body,
+            headers=headers,
+            stream=False
+        )
+        
+        response.raise_for_status()
+        
+        # Handle non-streaming response
+        result = response.json()["choices"][0]["message"]["content"]
+
+        result_json = json.loads(result)
+        if "score" in result_json:
+            return float(result_json["score"])
+        else:
+            print("Score not found in response:", result_json)
+            return None
+            
+    except requests.exceptions.RequestException as e:
+        print(f"API request failed: {e}")
+        return None
+
 @observe()
 def run_my_custom_llm_app(
     user_content,
@@ -22,7 +96,7 @@ def run_my_custom_llm_app(
     model="qwen3:14b",
     chat_id=None,
     max_tokens=5000,
-    temperature=1,
+    temperature=0.6,
     num_ctx=32000,
     files=None,
     variables=None,
@@ -90,11 +164,14 @@ def run_my_custom_llm_app(
         "params": {
             "max_tokens": max_tokens,
             "temperature": temperature,
-            "num_ctx": num_ctx
+            "num_ctx": num_ctx,
         },
         "messages": messages,
         "files": files,
-        "variables": variables
+        "variables": variables,
+        "top_p": 0.95,
+        "min_p": 0,
+        "top_k": 20,
     }
     
     # Get API endpoint from environment or use provided one
@@ -134,17 +211,26 @@ def run_experiment(experiment_name, system_prompt):
  
       # run application, pass input and system prompt
       output = run_my_custom_llm_app(item.input, system_prompt)
- 
+
+      llm_as_a_judge_score = score_llm_as_a_judge(item.input, output, item.ground_truth)
+    
       # optional: add custom evaluation results to the experiment trace
       # we use the previously created example evaluation function
       langfuse.score(
-        id="unique_id", # optional, can be used as an indempotency key to update the score subsequently
+        id="llm_as_a_judge_score", # optional, can be used as an indempotency key to update the score subsequently
         trace_id=trace_id,
-        name="correctness",
-        value=0.9,
+        name="llm_as_a_judge_score",
+        value=llm_as_a_judge_score,
         data_type="NUMERIC", # optional, inferred if not provided
-        comment="Factually correct",
-    )
+        comment="Factual correctness",
+      )
+      langfuse.score(
+        id="output", # optional, can be used as an indempotency key to update the score subsequently
+        trace_id=trace_id,
+        name="Output",
+        value=output,
+        comment="Output from the LLM",
+      )
 
 if __name__ == "__main__":
     # Run example usage
