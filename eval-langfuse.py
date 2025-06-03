@@ -5,7 +5,7 @@ import os
 import uuid
 import json
 from mlflow.metrics.genai import EvaluationExample, faithfulness
-
+import datetime
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -51,13 +51,11 @@ def score_llm_as_a_judge(query: str, generation: str, ground_truth: str):
       "temperature": 0.6,
       "max_completion_tokens": 2048,
       "top_p": 0.95,
-      "min_p": 0,
-      "top_k": 20,
       "frequency_penalty": 0,
       "presence_penalty": 0
     }
 
-    api_endpoint = os.getenv("OPENAI_OLLAMA_URL", "http://lxc-ai01:3000/ollama")  + "/v1/chat/completions"
+    api_endpoint = os.getenv("OPENAI_OLLAMA_URL", "http://lxc-ai01:3000/ollama/v1")  + "/chat/completions"
     try:
         # Make the API request
         headers = {
@@ -102,7 +100,11 @@ def run_my_custom_llm_app(
     num_ctx=32000,
     files=None,
     variables=None,
-    api_endpoint=None
+    api_endpoint=None,
+    expected_output=None,
+    item = None,
+    index=None,
+    trace_id=None,
 ):
     """
     Make a custom API call with configurable parameters
@@ -162,18 +164,18 @@ def run_my_custom_llm_app(
     payload = {
         "stream": stream,
         "model": model,
-        "chat_id": chat_id,
-        "params": {
-            "max_tokens": max_tokens,
-            "temperature": temperature,
-            "num_ctx": num_ctx,
-        },
+        # "chat_id": chat_id,
+        # "params": {
+        #     "max_tokens": max_tokens,
+        #     "temperature": temperature,
+        #     "num_ctx": num_ctx,
+        #     "top_p": 0.95,
+        #     "min_p": 0,
+        #     "top_k": 20,
+        # },
         "messages": messages,
-        "files": files,
-        "variables": variables,
-        "top_p": 0.95,
-        "min_p": 0,
-        "top_k": 20,
+        # "files": files,
+        # "variables": variables,
     }
     
     # Get API endpoint from environment or use provided one
@@ -187,17 +189,37 @@ def run_my_custom_llm_app(
             "Authorization": f"Bearer {os.getenv('OPENAI_API_KEY', '')}"
         }
         
+        start = datetime.datetime.now()
         response = requests.post(
             api_endpoint,
             json=payload,
             headers=headers,
             stream=stream
         )
+        end = datetime.datetime.now()
         
         response.raise_for_status()
         
         # Handle non-streaming response
-        return response.json()["choices"][0]["message"]["content"]
+        output = response.json()["choices"][0]["message"]["content"]
+
+        llm_as_a_judge_score = score_llm_as_a_judge(item.input, output, item.expected_output)
+        print(f"Score for {user_content}: {llm_as_a_judge_score}")
+        # item.link(trace_or_observation=langfuse_context.get_current_observation_id(), run_name=experiment_name, run_metadata={
+        #     "llm_as_a_judge_score": llm_as_a_judge_score,
+        #     "expected_output": item.expected_output,
+        # })
+
+        langfuse_context.score_current_observation(
+          name="llm_as_a_judge_score",
+          value=llm_as_a_judge_score,
+          data_type="NUMERIC",  # optional, inferred if not provided
+          comment="Score from LLM as a judge for correctness",
+          trace_id=trace_id,
+        )
+        langfuse_context.update_current_observation(model=model, start_time=start, end_time=end)
+
+        return output
             
     except requests.exceptions.RequestException as e:
         print(f"API request failed: {e}")
@@ -213,30 +235,13 @@ def run_experiment(experiment_name, system_prompt):
       print(f"Running evaluation for: {item.input} with trace ID: {trace_id}")
  
       # run application, pass input and system prompt
-      output = run_my_custom_llm_app(item.input, system_prompt)
+      output = run_my_custom_llm_app(item.input, system_prompt,
+                                     trace_id=trace_id,
+                                     item=item,
+                                     index=index,
+                                     expected_output=item.expected_output
+                                     )
 
-      llm_as_a_judge_score = score_llm_as_a_judge(item.input, output, item.expected_output)
-      print(f"Score for {item.input}: {llm_as_a_judge_score}")
-      item.link(trace_or_observation=trace_id, run_name=experiment_name, run_metadata={
-          "llm_as_a_judge_score": llm_as_a_judge_score,
-          "expected_output": item.expected_output,
-      })
-    
-      langfuse.score(
-        id=f"{index}",
-        trace_id=trace_id,
-        name="correctness",
-        value=llm_as_a_judge_score,
-        data_type="NUMERIC", # optional, inferred if not provided
-        comment="Factual correctness",
-      )
-      langfuse.score(
-        id=f"{index}",
-        trace_id=trace_id,
-        name="output",
-        value=output,
-        comment="Output from the LLM",
-      )
       langfuse_context.flush()
       langfuse.flush()
 
