@@ -210,6 +210,7 @@ def run_experiment(experiment_name, system_prompt):
     # item.observe() returns a trace_id that can be used to add custom evaluations later
     # it also automatically links the trace to the experiment run
     with item.observe(run_name=experiment_name) as trace_id:
+      print(f"Running evaluation for: {item.input} with trace ID: {trace_id}")
  
       # run application, pass input and system prompt
       output = run_my_custom_llm_app(item.input, system_prompt)
