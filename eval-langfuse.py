@@ -15,9 +15,9 @@ langfuse = Langfuse()
 system_prompt = langfuse.get_prompt("jdn-prompt")
 
 models = [
-    "qwen3:14b",
     "llama3.3:70b",
-    "gemma3:4b"
+    "gemma3:4b",
+    "qwen3:14b"
 ]
 
 def score_llm_as_a_judge(query: str, generation: str, ground_truth: str):
@@ -204,7 +204,10 @@ def run_my_custom_llm_app(
         )
         end = datetime.datetime.now()
         
-        response.raise_for_status()
+        if response.status_code != 200:
+            print(f"Error: Received status code {response.status_code} from API")
+            print(f"Response content: {response.json()}")
+            return None
         
         # Handle non-streaming response
         output = response.json()["choices"][0]["message"]["content"]
