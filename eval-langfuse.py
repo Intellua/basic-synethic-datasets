@@ -76,8 +76,10 @@ def score_llm_as_a_judge(query: str, generation: str, ground_truth: str):
         
         # Handle non-streaming response
         result = response.json()["choices"][0]["message"]["content"]
+        print("Raw result:", result)
 
         result_json = json.loads(result)
+        print("Parsed result JSON:", result_json)
         if "score" in result_json:
             return float(result_json["score"])
         else:
@@ -213,13 +215,14 @@ def run_experiment(experiment_name, system_prompt):
       output = run_my_custom_llm_app(item.input, system_prompt)
 
       llm_as_a_judge_score = score_llm_as_a_judge(item.input, output, item.expected_output)
+      print(f"Score for {item.input}: {llm_as_a_judge_score}")
     
       # optional: add custom evaluation results to the experiment trace
       # we use the previously created example evaluation function
       langfuse.score(
-        id="llm_as_a_judge_score", # optional, can be used as an indempotency key to update the score subsequently
+        id="corectness", # optional, can be used as an indempotency key to update the score subsequently
         trace_id=trace_id,
-        name="llm_as_a_judge_score",
+        name="Corectness",
         value=llm_as_a_judge_score,
         data_type="NUMERIC", # optional, inferred if not provided
         comment="Factual correctness",
