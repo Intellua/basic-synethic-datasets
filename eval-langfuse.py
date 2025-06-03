@@ -215,7 +215,6 @@ def run_my_custom_llm_app(
           value=llm_as_a_judge_score,
           data_type="NUMERIC",  # optional, inferred if not provided
           comment="Score from LLM as a judge for correctness",
-          trace_id=trace_id,
         )
         langfuse_context.update_current_observation(model=model, start_time=start, end_time=end)
 
