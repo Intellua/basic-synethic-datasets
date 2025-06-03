@@ -218,12 +218,10 @@ def run_experiment(experiment_name, system_prompt):
       llm_as_a_judge_score = score_llm_as_a_judge(item.input, output, item.expected_output)
       print(f"Score for {item.input}: {llm_as_a_judge_score}")
     
-      # optional: add custom evaluation results to the experiment trace
-      # we use the previously created example evaluation function
       langfuse.score(
         id=f"{index}",
         trace_id=trace_id,
-        name="Corectness",
+        name="correctness",
         value=llm_as_a_judge_score,
         data_type="NUMERIC", # optional, inferred if not provided
         comment="Factual correctness",
@@ -231,7 +229,7 @@ def run_experiment(experiment_name, system_prompt):
       langfuse.score(
         id=f"{index}",
         trace_id=trace_id,
-        name="Output",
+        name="output",
         value=output,
         comment="Output from the LLM",
       )
