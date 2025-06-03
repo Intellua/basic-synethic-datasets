@@ -8,6 +8,7 @@ dependencies = [
     "evaluate>=0.4.3",
     "langchain>=0.3.25",
     "langchain-openai>=0.2.0",
+    "langfuse>=2.60.7",
     "mlflow>=2.22.0",
     "openai>=1.0.0",
     "pandas>=2.0.0",
