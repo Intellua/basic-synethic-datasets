@@ -99,7 +99,7 @@ def run_my_custom_llm_app(
     
     # Get API endpoint from environment or use provided one
     if api_endpoint is None:
-        api_endpoint = os.getenv("OPENAI_BASE_URL", "http://lxc-ai01:3000/api/chat/completions")
+        api_endpoint = os.getenv("OPENAI_BASE_URL", "http://lxc-ai01:3000/api") + "/chat/completions"
     
     try:
         # Make the API request
@@ -125,7 +125,7 @@ def run_my_custom_llm_app(
         return None
 
 def run_experiment(experiment_name, system_prompt):
-  dataset = langfuse.get_dataset("Wiki Questions")
+  dataset = langfuse.get_dataset("wiki_questions")
 
   for item in dataset.items:
     # item.observe() returns a trace_id that can be used to add custom evaluations later
