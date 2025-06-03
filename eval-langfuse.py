@@ -22,7 +22,7 @@ models = [
 
 def score_llm_as_a_judge(query: str, generation: str, ground_truth: str):
     body = {
-      "model": "qwen3:14b",
+      "model": os.getenv("OPENAI_EVAL_MODEL", "qwen3:14b"),
       "messages": [
         {
           "role": "user",
@@ -94,8 +94,8 @@ def score_llm_as_a_judge(query: str, generation: str, ground_truth: str):
         print(f"API request failed: {e}")
         return None
 
-@observe()
-def run_my_custom_llm_app(
+@observe(capture_input=False)
+def eval_llm_as_a_judge(
     user_content,
     system_content=None,
     stream=False,
@@ -210,22 +210,28 @@ def run_my_custom_llm_app(
             return None
         
         # Handle non-streaming response
-        output = response.json()["choices"][0]["message"]["content"]
+        json = response.json()
+        output = json["choices"][0]["message"]["content"]
 
         llm_as_a_judge_score = score_llm_as_a_judge(item.input, output, item.expected_output)
         print(f"Score for {user_content}: {llm_as_a_judge_score}")
-        # item.link(trace_or_observation=langfuse_context.get_current_observation_id(), run_name=experiment_name, run_metadata={
-        #     "llm_as_a_judge_score": llm_as_a_judge_score,
-        #     "expected_output": item.expected_output,
-        # })
 
         langfuse_context.score_current_observation(
-          name="llm_as_a_judge_score",
+          name="score",
           value=llm_as_a_judge_score,
           data_type="NUMERIC",  # optional, inferred if not provided
           comment="Score from LLM as a judge for correctness",
         )
-        langfuse_context.update_current_observation(model=model, start_time=start, end_time=end)
+        langfuse_context.score_current_observation(
+          name="duration",
+          value=(end - start).total_seconds(),
+          data_type="NUMERIC",  # optional, inferred if not provided
+          comment="Score from LLM as a judge for correctness",
+        )
+        langfuse_context.update_current_observation(model=model, start_time=start, end_time=end, usage_details={
+            "input": json["usage"]["prompt_tokens"],
+            "output": json["usage"]["completion_tokens"]
+        }, input=user_content, output=output)
 
         return output
             
@@ -233,11 +239,12 @@ def run_my_custom_llm_app(
         print(f"API request failed: {e}")
         return None
 
+# @observe(capture_input=False, capture_output=False, as_type="generation")
 def run_experiment(experiment_name, system_prompt, model):
   dataset = langfuse.get_dataset("wiki_questions")
 
   for index, item in enumerate(dataset.items):
-    if index > 49:
+    if index > 9:
       print(f"Skipping item {index} as it exceeds the limit of 50 items.")
       break
     # item.observe() returns a trace_id that can be used to add custom evaluations later
@@ -246,7 +253,7 @@ def run_experiment(experiment_name, system_prompt, model):
       print(f"Running evaluation for: {item.input} with trace ID: {trace_id}")
  
       # run application, pass input and system prompt
-      output = run_my_custom_llm_app(item.input, system_prompt,
+      output = eval_llm_as_a_judge(item.input, system_prompt,
                                      trace_id=trace_id,
                                      item=item,
                                      index=index,
@@ -256,6 +263,7 @@ def run_experiment(experiment_name, system_prompt, model):
 
       langfuse_context.flush()
       langfuse.flush()
+  langfuse_context.update_current_observation(input=experiment_name, model=model)
 
 if __name__ == "__main__":
     
@@ -263,5 +271,9 @@ if __name__ == "__main__":
         experiment_name = f"jdn_wiki-{model}-{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}"
         print(f"Running experiment with model: {model}")
         run_experiment(experiment_name, system_prompt.prompt, model)
+        langfuse_context.flush()
+        langfuse.flush()
     
     print(f"Running experiment: {experiment_name}")
+    langfuse_context.flush()
+    langfuse.flush()
