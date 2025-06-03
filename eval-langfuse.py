@@ -93,7 +93,8 @@ def score_llm_as_a_judge(query: str, generation: str, ground_truth: str):
             api_endpoint,
             json=body,
             headers=headers,
-            stream=False
+            stream=False,
+            timeout=120
         )
         
         response.raise_for_status()
@@ -171,11 +172,13 @@ def eval_llm_as_a_judge(
     payload = {
         "stream": stream,
         "model": model,
-        "chat_id": chat_id,
         "messages": messages,
-        "files": files,
+        "temperature": temperature,
+
+        # OpenWebUI specific parameters
         "variables": variables,
-        "temperature": temperature
+        "chat_id": chat_id,
+        "files": files,
     }
     
     # Get API endpoint from environment or use provided one
@@ -194,7 +197,8 @@ def eval_llm_as_a_judge(
             api_endpoint,
             json=payload,
             headers=headers,
-            stream=stream
+            stream=stream,
+            timeout=120
         )
         end = datetime.datetime.now()
         
