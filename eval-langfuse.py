@@ -7,6 +7,7 @@ import json
 from mlflow.metrics.genai import EvaluationExample, faithfulness
 import datetime
 from dotenv import load_dotenv
+import random
 
 load_dotenv()
 
@@ -35,6 +36,7 @@ for model in models:
     for temperature in temperatures:
         for prompt in prompts:
             cartesian_product.append((model, temperature, prompt))
+random.shuffle(cartesian_product)
 
 print("Cartesian product of models and temperatures:")
 for model, temperature, prompt in cartesian_product:
