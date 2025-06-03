@@ -57,7 +57,7 @@ def score_llm_as_a_judge(query: str, generation: str, ground_truth: str):
       "presence_penalty": 0
     }
 
-    api_endpoint = os.getenv("OPENAI_OLLAMA_URL", "http://lxc-ai01:3000/ollama")
+    api_endpoint = os.getenv("OPENAI_OLLAMA_URL", "http://lxc-ai01:3000/ollama")  + "/chat/completions"
     try:
         # Make the API request
         headers = {
