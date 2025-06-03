@@ -4,7 +4,12 @@ import requests
 import os
 import uuid
 import json
- 
+from mlflow.metrics.genai import EvaluationExample, faithfulness
+
+from dotenv import load_dotenv
+
+load_dotenv()
+
 # init
 langfuse = Langfuse()
 system_prompt = langfuse.get_prompt("jdn-prompt")
@@ -144,3 +149,4 @@ def run_experiment(experiment_name, system_prompt):
 if __name__ == "__main__":
     # Run example usage
     run_experiment("Jan De Nul Group - JdnGPT", system_prompt.prompt)
+    langfuse.flush()
