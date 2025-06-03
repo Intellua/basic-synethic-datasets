@@ -233,8 +233,8 @@ def run_experiment(experiment_name, system_prompt):
         value=output,
         comment="Output from the LLM",
       )
+      langfuse.flush()
 
 if __name__ == "__main__":
     # Run example usage
     run_experiment("Jan De Nul Group - JdnGPT", system_prompt.prompt)
-    langfuse.flush()
