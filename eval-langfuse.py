@@ -67,7 +67,8 @@ def score_llm_as_a_judge(query: str, generation: str, ground_truth: str):
               }
             },
             "required": [
-              "score"
+              "score",
+              "reasoning"
             ],
             "additionalProperties": False
           }
@@ -111,6 +112,7 @@ def score_llm_as_a_judge(query: str, generation: str, ground_truth: str):
             
     except requests.exceptions.RequestException as e:
         print(f"API request failed: {e}")
+        print("Response content:", response.text if 'response' in locals() else "No response")
         return None
 
 @observe(capture_input=False)
@@ -246,10 +248,7 @@ def run_experiment(experiment_name: str, system_prompt: str, model: str, tempera
  
       # run application, pass input and system prompt
       _ = eval_llm_as_a_judge(item.input, system_prompt,
-                                     trace_id=trace_id,
                                      item=item,
-                                     index=index,
-                                     expected_output=item.expected_output,
                                      model=model,
                                      temperature=temperature,
                                      )
