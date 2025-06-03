@@ -243,7 +243,12 @@ def run_experiment(experiment_name: str, system_prompt: str, model: str, tempera
       break
     # item.observe() returns a trace_id that can be used to add custom evaluations later
     # it also automatically links the trace to the experiment run
-    with item.observe(run_name=experiment_name) as trace_id:
+    with item.observe(run_name=experiment_name,
+                      run_description=f"Model: {model}, Temperature: {temperature}", run_metadata={
+        "model": model,
+        "temperature": temperature,
+        "experiment_name": experiment_name
+    }) as trace_id:
       print(f"Running evaluation for: {item.input} with trace ID: {trace_id}")
  
       # run application, pass input and system prompt
