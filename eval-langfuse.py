@@ -212,7 +212,7 @@ def run_experiment(experiment_name, system_prompt):
       # run application, pass input and system prompt
       output = run_my_custom_llm_app(item.input, system_prompt)
 
-      llm_as_a_judge_score = score_llm_as_a_judge(item.input, output, item.ground_truth)
+      llm_as_a_judge_score = score_llm_as_a_judge(item.input, output, item.expected_output)
     
       # optional: add custom evaluation results to the experiment trace
       # we use the previously created example evaluation function
