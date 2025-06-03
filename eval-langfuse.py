@@ -217,7 +217,7 @@ def run_experiment(experiment_name, system_prompt):
 
       llm_as_a_judge_score = score_llm_as_a_judge(item.input, output, item.expected_output)
       print(f"Score for {item.input}: {llm_as_a_judge_score}")
-      item.link(trace_or_observation=trace_id, run_metadata={
+      item.link(trace_or_observation=trace_id, run_name=experiment_name, run_metadata={
           "llm_as_a_judge_score": llm_as_a_judge_score,
           "expected_output": item.expected_output,
       })
@@ -242,4 +242,6 @@ def run_experiment(experiment_name, system_prompt):
 
 if __name__ == "__main__":
     # Run example usage
-    run_experiment("", system_prompt.prompt)
+    experiment_name = "jdn_experiment"
+    print(f"Running experiment: {experiment_name}")
+    run_experiment(experiment_name, system_prompt.prompt)
