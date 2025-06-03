@@ -345,7 +345,7 @@ def run_experiment(experiment_name: str, system_prompt: str, model: str, tempera
   dataset = langfuse.get_dataset("wiki_questions")
 
   for index, item in enumerate(dataset.items):
-    if index > 4:
+    if index > 99:
       print(f"Skipping item {index} as it exceeds the limit of 50 items.")
       break
     # item.observe() returns a trace_id that can be used to add custom evaluations later
