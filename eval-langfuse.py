@@ -14,6 +14,12 @@ load_dotenv()
 langfuse = Langfuse()
 system_prompt = langfuse.get_prompt("jdn-prompt")
 
+models = [
+    "qwen3:14b",
+    "llama3.3:70b",
+    "gemma3:4b"
+]
+
 def score_llm_as_a_judge(query: str, generation: str, ground_truth: str):
     body = {
       "model": "qwen3:14b",
@@ -224,10 +230,13 @@ def run_my_custom_llm_app(
         print(f"API request failed: {e}")
         return None
 
-def run_experiment(experiment_name, system_prompt):
+def run_experiment(experiment_name, system_prompt, model):
   dataset = langfuse.get_dataset("wiki_questions")
 
   for index, item in enumerate(dataset.items):
+    if index > 49:
+      print(f"Skipping item {index} as it exceeds the limit of 50 items.")
+      break
     # item.observe() returns a trace_id that can be used to add custom evaluations later
     # it also automatically links the trace to the experiment run
     with item.observe(run_name=experiment_name) as trace_id:
@@ -238,14 +247,18 @@ def run_experiment(experiment_name, system_prompt):
                                      trace_id=trace_id,
                                      item=item,
                                      index=index,
-                                     expected_output=item.expected_output
+                                     expected_output=item.expected_output,
+                                     model=model
                                      )
 
       langfuse_context.flush()
       langfuse.flush()
 
 if __name__ == "__main__":
-    # Run example usage
-    experiment_name = "jdn_experiment"
+    
+    for model in models:
+        experiment_name = f"jdn_wiki-{model}-{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}"
+        print(f"Running experiment with model: {model}")
+        run_experiment(experiment_name, system_prompt.prompt, model)
+    
     print(f"Running experiment: {experiment_name}")
-    run_experiment(experiment_name, system_prompt.prompt)
