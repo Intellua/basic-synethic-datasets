@@ -22,7 +22,7 @@ models = [
 
 def score_llm_as_a_judge(query: str, generation: str, ground_truth: str):
     body = {
-      "model": os.getenv("OPENAI_EVAL_MODEL", "qwen3:14b"),
+      "model": os.getenv("OPENAI_EVAL_MODEL", "qwen3:30b-a3b"),
       "messages": [
         {
           "role": "user",
@@ -42,6 +42,10 @@ def score_llm_as_a_judge(query: str, generation: str, ground_truth: str):
           "schema": {
             "type": "object",
             "properties": {
+                "reasoning": {
+                "type": "string",
+                "description": "The reasoning behind the score assigned, explaining how the actual answer compares to the expected answer."
+              },
               "score": {
                 "type": "number",
                 "description": "The score assigned based on the quality of the actual answer compared to the expected answer."
@@ -85,7 +89,7 @@ def score_llm_as_a_judge(query: str, generation: str, ground_truth: str):
         result_json = json.loads(result)
         print("Parsed result JSON:", result_json)
         if "score" in result_json:
-            return float(result_json["score"])
+            return result_json["reasoning"], float(result_json["score"])
         else:
             print("Score not found in response:", result_json)
             return None
@@ -213,14 +217,14 @@ def eval_llm_as_a_judge(
         json = response.json()
         output = json["choices"][0]["message"]["content"]
 
-        llm_as_a_judge_score = score_llm_as_a_judge(item.input, output, item.expected_output)
+        llm_as_a_judge_reason, llm_as_a_judge_score = score_llm_as_a_judge(item.input, output, item.expected_output)
         print(f"Score for {user_content}: {llm_as_a_judge_score}")
 
         langfuse_context.score_current_observation(
           name="score",
           value=llm_as_a_judge_score,
           data_type="NUMERIC",  # optional, inferred if not provided
-          comment="Score from LLM as a judge for correctness",
+          comment=llm_as_a_judge_reason
         )
         langfuse_context.score_current_observation(
           name="duration",
